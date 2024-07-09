@@ -4,41 +4,61 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
+	"time"
 
-	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type FaqDetails struct {
+	Question    string `bson:"question"`
+	Description string `bson:"description"`
+	Link        string `bson:"link"`
+}
+
 func main() {
-	repoRouter := mux.NewRouter()
-	log.Println("started")
-	repoRouter.HandleFunc("/hello", UserAuthentication).Methods("GET")
-	http.ListenAndServe(":8020", repoRouter)
 
-	// Set client options
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
-
-	// Connect to MongoDB
-	client, err := mongo.Connect(context.TODO(), clientOptions)
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Check the connection
-	err = client.Ping(context.TODO(), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = client.Connect(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer client.Disconnect(ctx)
 
 	fmt.Println("Connected")
 
 	// Get a handle for your database and collection
-	collection := client.Database("test").Collection("faq")
+	collection := client.Database("test").Collection("FaqDetails")
 
-}
+	newFaqDetails := FaqDetails{
+		Question:    "Where is this?",
+		Description: "This is there",
+		Link:        "www.com",
+	}
 
-func UserAuthentication(w http.ResponseWriter, r *http.Request) {
-	log.Println("yest")
+	insertResult, err := collection.InsertOne(ctx, newFaqDetails)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Insert a single document: ", insertResult.InsertedID)
+
+	var result FaqDetails
+	filter := bson.D{{"question", "Where is this?"}}
+	err = collection.FindOne(ctx, filter).Decode(&result)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Found a single document: %+v\n", result)
+
 }
