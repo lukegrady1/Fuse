@@ -1,1 +1,0 @@
-// apiSubPath.HandleFunc("/faq", faqAPI.FetchFAQ).Methods"GET", "OPTIONS")
